@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(regLTMLE)
+library(rtmle)
 
-test_check("regLTMLE")
+test_check("rtmle")

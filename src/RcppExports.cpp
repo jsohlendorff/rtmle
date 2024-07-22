@@ -12,7 +12,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // rowSumsC
 NumericVector rowSumsC(NumericMatrix x);
-RcppExport SEXP _regLTMLE_rowSumsC(SEXP xSEXP) {
+RcppExport SEXP _rtmle_rowSumsC(SEXP xSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -23,11 +23,11 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_regLTMLE_rowSumsC", (DL_FUNC) &_regLTMLE_rowSumsC, 1},
+    {"_rtmle_rowSumsC", (DL_FUNC) &_rtmle_rowSumsC, 1},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_regLTMLE(DllInfo *dll) {
+RcppExport void R_init_rtmle(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }
