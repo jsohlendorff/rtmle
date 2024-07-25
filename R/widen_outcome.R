@@ -1,26 +1,28 @@
 widen_outcome <- function(outcome_name,
+                          outcome_data,
                           pop,
                           intervals,
-                          como,
+                          fun.aggregate = NULL,
                           id){
     stopifnot(id %in% names(pop))
-    stopifnot(all(sapply(como,function(com){id %in% names(com)})))
-    stopifnot(outcome_name %in% names(como))
+    stopifnot(id %in% names(outcome_data))
     # time grid with one line per interval
     length_interval=unique(round(diff(intervals),0))
-    grid <- pop[,.(date=start+intervals),by=id]
+    # if no start of followup variable is given
+    # we assume all start at zero
+    if (("start" %in% names(pop))){
+        grid <- pop[,.(date=start+intervals),by=id]
+    }else{
+        grid <- pop[,.(date=intervals),by=id]
+    }
     grid[,interval:=0:(length(intervals)-1),by=id]
     # -----------------------------------------------------------------------
     # death and right censored
     # -----------------------------------------------------------------------
     wide=map_intervals(grid=grid,data=pop[!is.na(death_date), list(id=id,date=death_date)],name="Dead",rollforward=Inf,id = id)
     # naturally, NA values mean censored. hence: fill=1
-    w=map_intervals(grid=grid,data=pop[!is.na(censored_date),list(id=id,date=censored_date)],name="Censored",rollforward=Inf,values=c("censored","uncensored"),fill="censored",X.factor=TRUE,id = id)
+    w=map_intervals(grid=grid,data=pop[!is.na(censored_date),list(id=id,date=censored_date)],name="Censored",rollforward=Inf,values=c("censored","uncensored"),fun.aggregate = fun.aggregate,fill="censored",X.factor=TRUE,id = id)
     wide=wide[w]
-    # -----------------------------------------------------------------------
-    # outcome data and name
-    # -----------------------------------------------------------------------
-    outcome_data=como[[outcome_name]]
     # -----------------------------------------------------------------------
     # only interested in new outcomes with onset after index
     # but want to tag patients who are in hospital with the outcome

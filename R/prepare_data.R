@@ -3,9 +3,9 @@
 ## Author: Thomas Alexander Gerds
 ## Created: Jul 19 2024 (10:07) 
 ## Version: 
-## Last-Updated: Jul 19 2024 (11:43) 
+## Last-Updated: Jul 25 2024 (12:55) 
 ##           By: Thomas Alexander Gerds
-##     Update #: 3
+##     Update #: 15
 #----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -14,17 +14,45 @@
 #----------------------------------------------------------------------
 ## 
 ### Code:
-"prepare_data<-" <- function(x,subset_id = NULL,...,value){
+"prepare_data<-" <- function(x,intervals,subset_id = NULL,...,value){
     x$name_regimen = value
     time_horizon = max(x$times)
     K = length(x$times)
-    stopifnot(inherits(x$treatment_data,"data.table"))
-    stopifnot(inherits(x$outcome_data,"data.table"))
-    stopifnot(match(x$name_id,names(x$treatment_data),nomatch = 0)>0)
-    stopifnot(match(x$name_id,names(x$outcome_data),nomatch = 0)>0)
-    data.table::setkeyv(x$treatment_data,x$name_id)
-    data.table::setkeyv(x$outcome_data,x$name_id)
-    work_data=x$outcome_data[x$treatment_data,on = x$name_id]
+    if (length(x$data) == 0){
+        if (length(x$long_data) == 0) {stop("Object contains no data.")}
+        if (missing(intervals)) {stop("Need time intervals to map the long data.")}
+        x$data$outcome_data <- widen_outcome(outcome_name = x$name_outcome,
+                                             pop = x$long_data$baseline_data,
+                                             intervals = intervals,
+                                             fun.aggregate = NULL,
+                                             outcome_data = x$long_data$outcome_data,
+                                             id = x$name_id)
+        # FIXME: if more than one instance (such as treatment) happens
+        #        within one interval
+        #        an aggregate function determines the value inside
+        #        the interval
+        funA <- function(x){1*(sum(x)>0)}
+        x$data$treatment_data <- widen_treatment(treatment = x$long_data$treatment_data,
+                                                 treatment_name = value,
+                                                 pop = x$long_data$baseline_data,
+                                                 fun.aggregate = funA,
+                                                 intervals = intervals,
+                                                 id = x$name_id)
+        x$data$timevar_data <- widen_treatment(treatment_name = "L",
+                                               treatment = x$long_data$como_data,
+                                               pop = x$long_data$baseline_data,
+                                               fun.aggregate = funA,
+                                               intervals = intervals,
+                                               id = x$name_id)
+    } else{
+        stopifnot(inherits(x$data$treatment_data,"data.table"))
+        stopifnot(inherits(x$data$outcome_data,"data.table"))
+        stopifnot(match(x$name_id,names(x$data$treatment_data),nomatch = 0)>0)
+        stopifnot(match(x$name_id,names(x$data$outcome_data),nomatch = 0)>0)
+    }
+    data.table::setkeyv(x$data$treatment_data,x$name_id)
+    data.table::setkeyv(x$data$outcome_data,x$name_id)
+    work_data=x$data$outcome_data[x$data$treatment_data,on = x$name_id]
     # deal with outcome/death/censored at index
     Y_0 = match(paste0(x$name_outcome,"_",0),names(work_data))
     D_0 = match(paste0(x$name_competing,"_",0),names(work_data))
@@ -55,20 +83,20 @@
         stopifnot(nrow(work_data)>0)
     }
     # adding the baseline covariates
-    if (!is.null(x$baseline_data)){
-        stopifnot(inherits(x$baseline_data,"data.table"))
-        stopifnot(match(x$name_id,names(x$baseline_data),nomatch = 0)>0)
-        work_data=x$baseline_data[work_data,on = x$name_id]
+    if (!is.null(x$data$baseline_data)){
+        stopifnot(inherits(x$data$baseline_data,"data.table"))
+        stopifnot(match(x$name_id,names(x$data$baseline_data),nomatch = 0)>0)
+        work_data=x$data$baseline_data[work_data,on = x$name_id]
     }
     # add time covariates
     # first remove outcome if overlap
-    if (length(x$timevar_data)>0){
-        stopifnot(inherits(x$timevar_data,"data.table"))
-        stopifnot(match(x$name_id,names(x$timevar_data),nomatch = 0)>0)
-        if (length((outcome_overlap <- grep(paste0(x$name_outcome,"_"),names(x$timevar_data)))>0)){
-            timevar_data <- x$timevar_data[,-outcome_overlap, with=FALSE]}
+    if (length(x$data$timevar_data)>0){
+        stopifnot(inherits(x$data$timevar_data,"data.table"))
+        stopifnot(match(x$name_id,names(x$data$timevar_data),nomatch = 0)>0)
+        if (length((outcome_overlap <- grep(paste0(x$name_outcome,"_"),names(x$data$timevar_data)))>0)){
+            timevar_data <- x$data$timevar_data[,-outcome_overlap, with=FALSE]}
         else
-            timevar_data = x$timevar_data
+            timevar_data = x$data$timevar_data
         data.table::setkeyv(timevar_data,x$name_id)
         work_data=timevar_data[work_data, on = x$name_id]
         name_time_covariates = unlist(lapply(grep("_0",names(timevar_data),value=TRUE),
@@ -76,7 +104,7 @@
     }else{
         name_time_covariates <- NULL
     }
-    name_baseline_covariates = setdiff(names(x$baseline_data),x$name_id)
+    name_baseline_covariates = setdiff(names(x$data$baseline_data),x$name_id)
     # sorting the variables for LTMLE
     work_data = work_data[,c(x$name_id, intersect(c(name_baseline_covariates,unlist(sapply(x$times, function(timepoint){
         if(timepoint == 0){
@@ -190,7 +218,7 @@
     L_nodes <- c(sapply(x$times, function(k) {paste0(c(name_time_covariates), "_", k)}))
     L_nodes <- L_nodes[match(L_nodes, names(work_data),nomatch = 0)!=0]
     if(length(x$name_censoring)==0) {C_nodes = NULL}
-    x$data <- work_data[]
+    x$prepared_data <- work_data[]
     x$name_time_covariates <- name_time_covariates
     x$name_baseline_covariates <- name_baseline_covariates
     x$name_constant_variables <- constant_variables

@@ -3,6 +3,7 @@ map_intervals <- function(grid,
                           name,
                           rollforward,
                           values=c(1,0),
+                          fun.aggregate = NULL,
                           fill=NA,
                           X.factor=FALSE,
                           id){
@@ -16,13 +17,14 @@ map_intervals <- function(grid,
     # missing value means no event in this interval
     grid[is.na(grid$X),X:=values[[2]]]
     setkeyv(grid,c(id,"interval"))
-    wide <- dcast(grid,
-                  formula(paste0(id,"~interval")),
-                  value.var="X",
-                  sep="_",
-                  # FIXME: if more than one treatment event happens
-                  fun.aggregate = function(x){1*sum(x)>0},
-                  fill=fill)
+    # note: need do.call because otherwise fun.aggregate is not
+    #       interpreted correctly
+    wide <- do.call(dcast,list(grid,
+                               formula(paste0(id,"~interval")),
+                               value.var="X",
+                               sep="_",
+                               fun.aggregate = fun.aggregate,
+                               fill=fill))
     if (X.factor) {
         # this is for ltmle censored/uncensored
         for (cc in names(wide)[-1]){
