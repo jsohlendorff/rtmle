@@ -3,9 +3,9 @@
 ## Author: Thomas Alexander Gerds
 ## Created: Jul  3 2024 (13:54) 
 ## Version: 
-## Last-Updated: Jul 19 2024 (10:48) 
+## Last-Updated: Jul 25 2024 (14:24) 
 ##           By: Thomas Alexander Gerds
-##     Update #: 8
+##     Update #: 9
 #----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -34,8 +34,15 @@ update_Q <- function(Y,
         ## print(head(subjects_with_weights))
         ## print(tail(subjects_with_weights))
         ## print(head(as.vector(scale(weights[weights > 0], center = FALSE))))
-        m <- ltmle.glm(f, data = data.temp[weights > 0, ], family = quasibinomial(),
-                       weights = as.vector(scale(weights[weights > 0], center = FALSE)))
+        has_weight <- weights > 0
+        weights <- as.vector(scale(weights[has_weight], center = FALSE))
+        m <- glm(formula = f,
+                 family = quasibinomial(),
+                 data = data.frame(data.temp[has_weight, ],weights),
+                 weights = weights,
+                 control = glm.control(maxit = 100))
+        ## m <- ltmle.glm(f, data = data.temp[weights > 0, ], family = quasibinomial(),
+                       ## weights = as.vector(scale(weights[weights > 0], center = FALSE)))
         ## browser(skipCalls = TRUE)
         Qstar <- predict(m, newdata = data.temp, type = "response")
     }

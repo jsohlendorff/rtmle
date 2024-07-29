@@ -3,9 +3,9 @@
 ## Author: Thomas Alexander Gerds
 ## Created: Jul 19 2024 (10:07) 
 ## Version: 
-## Last-Updated: Jul 25 2024 (12:55) 
+## Last-Updated: Jul 29 2024 (09:57) 
 ##           By: Thomas Alexander Gerds
-##     Update #: 15
+##     Update #: 47
 #----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -14,36 +14,93 @@
 #----------------------------------------------------------------------
 ## 
 ### Code:
-"prepare_data<-" <- function(x,intervals,subset_id = NULL,...,value){
-    x$name_regimen = value
+##' If the object contains data in long format these are
+##' transformed to wide format. The wide format data are sorted and
+##' checked for the analysis and added as \code{x$prepared_data}.
+##'
+##' As a wanted side effect the function identifies the variables
+##' for the intervention nodes (A_nodes), the time dependent covariates (B_nodes)
+##' the outcome nodes (Y_nodes), the competing risk nodes (D_nodes) and the
+##' censoring nodes (C_nodes) and adds them to the object. 
+##' @title Preparing a targeted minimum loss based analysis
+##' @param x Object which contains long format or wide format data
+##' @param ... not used
+##' @param value A list with the following forced elements:
+##' \itemize{
+##' \item \code{"intervals"} The time intervals
+##' \item \code{"treatment_variables"} The treatment variables
+##' }
+##' @return The object augmented with a new element called \code{prepared_data}.
+##' @seealso rtmle_init
+##' @examples
+##' set.seed(112)
+#' ld <- simulate_long_data(n = 100,number_epochs = 20,
+#'                          beta = list(A_on_Y = -.2,
+#'                          A0_on_Y = -0.3,A0_on_A = 6),
+#'                                register_format = TRUE)
+#' x <- rtmle_init(intervals = 8, name_id = "id",
+#'                 name_outcome = "Y", name_competing = "Dead",
+#'                 name_censoring = "Censored",censored_label = "censored")
+#' add_long_data(x) <- ld
+#' prepare_data(x) <- list(treatment_variables = "A",
+#'                        reset = TRUE,
+#'                        intervals = seq(0,2000,30.45*6))
+#' x$prepared_data
+##' @export 
+##' @author Thomas A. Gerds <tag@@biostat.ku.dk>
+"prepare_data<-" <- function(x,...,value){
+    stopifnot(is.list(value))
+    stopifnot(all(c("intervals","treatment_variables")%in%names(value)))
+    intervals = value$intervals
+    reset = value$reset
+    if (length(reset) == 0) reset = FALSE
+    subset = value$subset
+    treatment_variables = value$treatment_variables
     time_horizon = max(x$times)
     K = length(x$times)
-    if (length(x$data) == 0){
+    if (length(x$data) == 0 || reset){
         if (length(x$long_data) == 0) {stop("Object contains no data.")}
+        # FIXME: this next line does not copy the data, right?
+        x$data$baseline_data = x$long_data$baseline_data
         if (missing(intervals)) {stop("Need time intervals to map the long data.")}
+        pop <- x$long_data$baseline_data[,x$name_id,with = FALSE]
+        pop[,start_followup := rep(0,.N)]
+        if (!("competingrisk_date" %in% names(x$long_data$competingrisk_data)))
+            setnames(x$long_data$competingrisk_data,"date","competingrisk_date")
+        pop <- x$long_data$competingrisk_data[pop,on = x$name_id]
+        if (!("censored_date" %in% names(x$long_data$censored_data)))
+            setnames(x$long_data$censored_data,"date","censored_date")
+        pop <- x$long_data$censored_data[pop,on = x$name_id]
+        if (!("outcome_date" %in% names(x$long_data$outcome_data)))
+            setnames(x$long_data$outcome_data,"date","outcome_date")
+        pop <- x$long_data$outcome_data[pop,on = x$name_id]
+        pop[,end_followup := pmin(censored_date,competingrisk_date,outcome_date,na.rm = TRUE)]
+        if (any(is.na(pop$end_followup)))stop("Missing values in end of followup information")
+        grid <- pop[,.(date=start_followup+intervals, end = end_followup),by=eval(as.character(x$name_id))]
+        grid[,interval:=0:(length(intervals)-1),by=eval(as.character(x$name_id))]
+        grid <- pop[,.SD,.SDcols = c(x$name_id)][grid,on = eval(as.character(x$name_id))]
+        length_interval=unique(round(diff(intervals),0))
+        # now awkwardly reset the names
+        setnames(x$long_data$competingrisk_data,"competingrisk_date","date")
+        setnames(x$long_data$censored_data,"censored_date","date")
+        setnames(x$long_data$outcome_data,"outcome_date","date")
+        # FIXME: allow for data after the end of followup?
+        ## grid <- grid[date<=end+length_interval]
         x$data$outcome_data <- widen_outcome(outcome_name = x$name_outcome,
-                                             pop = x$long_data$baseline_data,
-                                             intervals = intervals,
-                                             fun.aggregate = NULL,
                                              outcome_data = x$long_data$outcome_data,
+                                             competingrisk_data = x$long_data$competingrisk_data,
+                                             censored_data = x$long_data$censored_data,
+                                             grid = grid,
+                                             fun.aggregate = NULL,
                                              id = x$name_id)
         # FIXME: if more than one instance (such as treatment) happens
         #        within one interval
         #        an aggregate function determines the value inside
         #        the interval
         funA <- function(x){1*(sum(x)>0)}
-        x$data$treatment_data <- widen_treatment(treatment = x$long_data$treatment_data,
-                                                 treatment_name = value,
-                                                 pop = x$long_data$baseline_data,
-                                                 fun.aggregate = funA,
-                                                 intervals = intervals,
-                                                 id = x$name_id)
-        x$data$timevar_data <- widen_treatment(treatment_name = "L",
-                                               treatment = x$long_data$como_data,
-                                               pop = x$long_data$baseline_data,
-                                               fun.aggregate = funA,
-                                               intervals = intervals,
-                                               id = x$name_id)
+        x$data$treatment_data <- map_grid(grid=grid,data=x$long_data$treatment_data,name=treatment_variables,fun.aggregate = funA,rollforward=(length_interval - 1),id = x$name_id)
+        # FIXME: names of timevar data are not just L
+        x$data$timevar_data <- map_grid(grid=grid,data=x$long_data$timevar_data,name="L",fun.aggregate = funA,rollforward=(length_interval - 1),id = x$name_id)
     } else{
         stopifnot(inherits(x$data$treatment_data,"data.table"))
         stopifnot(inherits(x$data$outcome_data,"data.table"))
@@ -108,18 +165,18 @@
     # sorting the variables for LTMLE
     work_data = work_data[,c(x$name_id, intersect(c(name_baseline_covariates,unlist(sapply(x$times, function(timepoint){
         if(timepoint == 0){
-            paste0(c(name_time_covariates, x$name_regimen),"_",timepoint)
+            paste0(c(name_time_covariates, treatment_variables),"_",timepoint)
         } else{
             if(timepoint != x$times[K]){
-                paste0(c(x$name_censoring, x$name_outcome, x$name_competing, name_time_covariates, x$name_regimen),"_",timepoint)
+                paste0(c(x$name_censoring, x$name_outcome, x$name_competing, name_time_covariates, treatment_variables),"_",timepoint)
             } else {
                 paste0(c(x$name_censoring, x$name_outcome),"_",timepoint)
             }
         }
     }))), names(work_data))), with = FALSE]
     # subset data
-    if(length(subset_id)>0){
-        subset_dt = data.table(ID = subset_id)
+    if(length(subset)>0){
+        subset_dt = data.table(ID = subset)
         setnames(subset_dt,"ID",x$name_id)
         work_data = work_data$data[subset_dt,on = x$name_id]
     }
@@ -137,13 +194,13 @@
         }
     }
     ## Manipulation of the event nodes
-    A_nodes = unlist(lapply(x$times[-K], function(time){paste0(x$name_regimen, "_", time)}))
+    A_nodes = unlist(lapply(x$times[-K], function(time){paste0(treatment_variables, "_", time)}))
     Y_nodes = unlist(lapply(x$times[-1], function(time){paste0(x$name_outcome, "_", time)}))
     D_nodes = unlist(lapply(x$times[-c(1,K)], function(time){paste0(x$name_competing, "_", time)}))
     C_nodes = unlist(lapply(x$times[-1], function(time){paste0(x$name_censoring, "_", time)}))
     # if A,B then B_0 is obsolete because A0=1-B0
-    if (length(x$name_regimen) == 2)
-        A_nodes <- A_nodes[A_nodes != paste0(x$name_regimen[[2]],"_0")]
+    if (length(treatment_variables) == 2)
+        A_nodes <- A_nodes[A_nodes != paste0(treatment_variables[[2]],"_0")]
     A_nodes_position = match(A_nodes, names(work_data))
     Y_nodes_position = match(Y_nodes, names(work_data))
     D_nodes_position = match(D_nodes, names(work_data))

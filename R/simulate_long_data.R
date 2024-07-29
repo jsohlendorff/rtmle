@@ -3,9 +3,9 @@
 ## Author: Thomas Alexander Gerds
 ## Created: Jul 11 2024 (13:24) 
 ## Version: 
-## Last-Updated: Jul 25 2024 (13:09) 
+## Last-Updated: Jul 25 2024 (13:52) 
 ##           By: Thomas Alexander Gerds
-##     Update #: 234
+##     Update #: 237
 #----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -151,21 +151,21 @@ simulate_long_data <- function(n,
     if (register_format){
         bsl <- pop[time == 0,.(id,sex,age)]
         event_data <- pop[time == 0,.(id,terminal_time = terminal_time,terminal_event)]
-        censored_data <- event_data[,terminal_event == "C",.(id,date = terminal_time)]
-        death_data <- event_data[,terminal_event == "D",.(id,date = terminal_time)]
+        censored_data <- event_data[terminal_event == "C",.(id,date = terminal_time)]
+        competingrisk_data <- event_data[terminal_event == "D",.(id,date = terminal_time)]
         outcome_data <- event_data[terminal_event == "Y",.(id,date = terminal_time)]
-        como_baseline <- pop[time == 0 & L_0 == 1,.(id,date = 0)]
-        como_data <- pop[event == "L",.(id,date = time)]
-        como_data <- rbind(como_baseline,como_data)
+        timevar_baseline <- pop[time == 0 & L_0 == 1,.(id,date = 0)]
+        timevar_data <- pop[event == "L",.(id,date = time)]
+        timevar_data <- rbind(timevar_baseline,timevar_data)
         # random baseline treatment
         treatment_baseline <- pop[time == 0 & A_0 == 1,.(id,date = 0)]
         treatment_data <- pop[event == "A",.(id,date = time)]
         treatment_data <- rbind(treatment_baseline,treatment_data)
         list(baseline_data = bsl,
              treatment_data = treatment_data,
-             como_data = como_data,
+             timevar_data = timevar_data,
              outcome_data = outcome_data,
-             competingrisk_data = death_data,
+             competingrisk_data = competingrisk_data,
              censored_data = censored_data)
     }else{
         pop[]

@@ -3,9 +3,9 @@
 ## Author: Thomas Alexander Gerds
 ## Created: Jul 19 2024 (08:31) 
 ## Version: 
-## Last-Updated: Jul 19 2024 (10:27) 
+## Last-Updated: Jul 29 2024 (14:51) 
 ##           By: Thomas Alexander Gerds
-##     Update #: 10
+##     Update #: 13
 #----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -14,6 +14,14 @@
 #----------------------------------------------------------------------
 ## 
 ### Code:
+#' Printing an object for register data analysis with the targeted minimum loss estimator 
+#'
+#' This print function informs about the current state of the object and
+#' about how to proceed.
+#' @param x Object to be printed
+#' @param ...
+#' @method print rtmle
+#' @export
 print.rtmle <- function(x,...){
     cat("Targeted minimum loss analysis of register data.\n",sep = "")
     cat("  Initialized to ",length(x$times)," time intervals.\n",sep = "")

@@ -3,9 +3,9 @@
 ## Author: Thomas Alexander Gerds
 ## Created: Jul  3 2024 (13:46) 
 ## Version: 
-## Last-Updated: Jul 19 2024 (11:26) 
+## Last-Updated: Jul 29 2024 (14:51) 
 ##           By: Thomas Alexander Gerds
-##     Update #: 6
+##     Update #: 10
 #----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -16,17 +16,17 @@
 ### Code:
 intervene <- function(formula,
                       data,
-                      targets,
+                      protocol,
                       time){
     ## interdata <- copy(model.frame(delete.response(terms(formula(formula))),data,na.action = "na.fail"))
     av <- all.vars(delete.response(terms(formula(formula))))
     if (length(av)>0){
         interdata <- data[,av,with = FALSE]
         ## FIXME: for (tar in targets)
-        for (k in 1:time){
+        for (k in 1:nrow(protocol)){
             set(interdata,
-                j = x$targets[[1]][[paste0("time_",k-1)]]$variable,
-                value = x$targets[[1]][[paste0("time_",k-1)]]$value)
+                j = protocol[k,variable],
+                value = protocol[k,value])
         }
     }else{
         interdata <- NULL
