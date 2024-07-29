@@ -1,17 +1,16 @@
-map_intervals <- function(grid,
-                          data,
-                          name,
-                          rollforward,
-                          values=c(1,0),
-                          fun.aggregate = NULL,
-                          fill=NA,
-                          X.factor=FALSE,
-                          id){
-    # make sure that only patients who have a date are rolled
-    data=data[!is.na(date)]
+map_grid <- function(grid,
+                     data,
+                     name,
+                     rollforward,
+                     values=c(1,0),
+                     fun.aggregate = NULL,
+                     fill=NA,
+                     X.factor=FALSE,
+                     id){
     if (length(data)==0) return(NULL)
     setkeyv(grid,c(id,"date"))
     setkeyv(data,c(id,"date"))
+    data = copy(data)
     data[,X:=values[[1]]]
     grid <- data[grid,roll=rollforward]
     # missing value means no event in this interval
